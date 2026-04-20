@@ -1,69 +1,29 @@
 import os
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.contrib.auth.models import AbstractUser
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 
-class UserManager(BaseUserManager):
-    def create_user(self, email, username, password=None, **extra_fields):
-        if not email:
-            raise ValueError('Поле электронной почты должно быть заполнено')
-        if not username:
-            raise ValueError('Поле пользователя должно быть заполнено')
-
-        email = self.normalize_email(email)
-        user = self.model(email=email, username=username, **extra_fields)
-        user.set_password(password)
-        user.save(using=self._db)
-        return user
-
-    def create_superuser(self, email, username, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-
-        return self.create_user(email, username, password, **extra_fields)
-
-class User(AbstractBaseUser, PermissionsMixin):
-    id_user = models.AutoField(primary_key=True)
-    email = models.EmailField(max_length=128, unique=True, null=False)
-    username = models.CharField(max_length=128, unique=True, null=False)
-    fullname = models.CharField(max_length=128, null=False)
-    role = models.CharField(max_length=128, default="user")
-    
-    is_active = models.BooleanField(default=True)
-    is_staff = models.BooleanField(default=False)
-
-    objects = UserManager()
-
-    USERNAME_FIELD = 'username'
-    REQUIRED_FIELDS = ['email']
-
-    class Meta:
-        db_table = "users"
+class CustomUser(AbstractUser):
+    ROLE_CHOICES = (
+        ('user', 'User'),
+        ('admin', 'Admin'),
+    )
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
 
     def __str__(self):
         return self.username
 
 class Storage(models.Model):
-    id_file = models.AutoField(primary_key=True)
-    id_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="storages", db_column="user_id")
-    original_name = models.CharField(max_length=128, null=False)
-    new_name = models.CharField(max_length=128, null=True, blank=True)
-    comment = models.CharField(max_length=128, null=False)
-    size = models.BigIntegerField()
-    upload_date = models.DateTimeField(auto_now_add=True, db_column="uploaddate")
-    last_download_date = models.DateTimeField(null=True, auto_now=False, blank=True, db_column="lastdownloaddate")
-    file = models.FileField(upload_to='uploads/')
-    token = models.CharField(max_length=32, null=True, blank=True)
-    token_expiration = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        db_table = "storage"
+    id_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='files')
+    file = models.FileField(upload_to='uploads/%Y/%m/%d/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.original_name
+        return f"{self.id_user.username} - {self.file.name}"
 
-    def delete(self, *args, **kwargs):
-        # Удаляем файл из файловой системы
-        if self.file:
-            if os.path.isfile(self.file.path):
-                os.remove(self.file.path)
-        super(Storage, self).delete(*args, **kwargs)
+@receiver(post_delete, sender=Storage)
+def delete_file_from_disk(sender, instance, **kwargs):
+    if instance.file:
+        if os.path.isfile(instance.file.path):
+            os.remove(instance.file.path)

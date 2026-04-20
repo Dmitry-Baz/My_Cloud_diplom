@@ -1,79 +1,76 @@
 import "./LoginForm.css";
-
-import API_BASE_URL from "../../config";
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAppDispatch } from "../../hooks";
+import {
+  loginStart,
+  loginSuccess,
+  loginFailure,
+} from "../../store/slices/authSlice";
+import axios from "axios";
 
-export const LoginForm: React.FC<{
-  updateRole: (role: string, is_superuser: boolean) => void;
-}> = ({ updateRole }) => {
-  const [username, setUsername] = useState<string>(""); 
-  const [password, setPassword] = useState<string>(""); 
-  const [error, setError] = useState<string>(""); 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
+export const LoginForm: React.FC = () => {
+  const [username, setUsername] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [localError, setLocalError] = useState<string>("");
+
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setLocalError("");
+    dispatch(loginStart());
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/token/login/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ username, password }),
-      });
+      const authResponse = await axios.post(
+        `${API_BASE_URL}/auth/token/login/`,
+        {
+          username,
+          password,
+        }
+      );
 
-      if (!response.ok) {
-        throw new Error("Некорректный логин или пароль");
-      }
+      const auth_token = authResponse.data.auth_token;
 
-      const data = await response.json();
-      const { auth_token } = data;
-
-      localStorage.setItem("token", auth_token);
-
-      const response_user = await fetch(
+      const userResponse = await axios.get(
         `${API_BASE_URL}/api/users/user_info/`,
         {
-          method: "GET",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Token ${auth_token}`,
           },
         }
       );
 
-      if (!response_user.ok) {
-        let errorMsg = "Не удалось загрузить данные пользователя";
-        try {
-          const errorData = await response_user.json();
-          if (errorData.detail) errorMsg = errorData.detail;
-        } catch (e) {
-        }
-        throw new Error(errorMsg);
-      }
+      const userData = userResponse.data;
 
-      const data_user = await response_user.json();
+      const userPayload = {
+        id_user: userData.id_user,
+        username: userData.username,
+        email: userData.email,
+        role: userData.role,
+        is_superuser: userData.is_superuser || userData.role === "admin",
+      };
 
-      const { role, id_user, is_superuser } = data_user;
+      dispatch(loginSuccess({ token: auth_token, user: userPayload }));
 
-      localStorage.setItem("role", role);
-      localStorage.setItem("id_user", String(id_user)); 
-
-      updateRole(role, is_superuser);
-
-      if (role === "admin" || is_superuser) {
+      if (userPayload.role === "admin" || userPayload.is_superuser) {
         navigate("/admin");
       } else {
-        navigate(`/storage/${id_user}`);
+        navigate(`/storage/${userPayload.id_user}`);
       }
-    } catch (err: unknown) {
+    } catch (err: any) {
+      dispatch(loginFailure());
       console.error(err);
-      if (err instanceof Error) {
-        setError(err.message);
+
+      if (err.response && err.response.data && err.response.data.detail) {
+        setLocalError(err.response.data.detail);
+      } else if (err.message) {
+        setLocalError(err.message);
       } else {
-        setError("Произошла ошибка при входе");
+        setLocalError("Произошла ошибка при входе");
       }
     }
   };
@@ -104,7 +101,7 @@ export const LoginForm: React.FC<{
             />
           </label>
         </div>
-        {error && <div style={{ color: "red" }}>{error}</div>}
+        {localError && <div style={{ color: "red" }}>{localError}</div>}
         <button className="button-signin" type="submit">
           Войти
         </button>

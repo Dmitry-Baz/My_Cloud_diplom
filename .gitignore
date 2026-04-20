@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 
+server/venv
+
 # Editor directories and files
 .qoder/*
 .vscode/*

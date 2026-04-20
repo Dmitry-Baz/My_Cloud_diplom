@@ -1,1 +1,1 @@
-export * from "./FileStorage";
+export { default as FileStorage } from "./FileStorage";
