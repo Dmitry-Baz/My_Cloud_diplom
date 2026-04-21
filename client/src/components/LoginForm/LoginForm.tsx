@@ -1,13 +1,10 @@
+// client/src/components/LoginForm/LoginForm.tsx
 import "./LoginForm.css";
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppDispatch } from "../../hooks";
-import {
-  loginStart,
-  loginSuccess,
-  loginFailure,
-} from "../../store/slices/authSlice";
-import axios from "axios";
+import { login } from "../../store/slices/authSlice";
+import axios, { AxiosError } from "axios";  // ← добавляем импорт AxiosError
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
@@ -22,55 +19,32 @@ export const LoginForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLocalError("");
-    dispatch(loginStart());
-
+    
     try {
-      const authResponse = await axios.post(
-        `${API_BASE_URL}/auth/token/login/`,
-        {
-          username,
-          password,
+      const result = await dispatch(login({ username, password }));
+      
+      if (login.fulfilled.match(result)) {
+        const user = result.payload.user;
+        if (user.is_admin || user.role === "admin") {
+          navigate("/admin");
+        } else {
+          navigate(`/storage/${user.id}`);
         }
-      );
-
-      const auth_token = authResponse.data.auth_token;
-
-      const userResponse = await axios.get(
-        `${API_BASE_URL}/api/users/user_info/`,
-        {
-          headers: {
-            Authorization: `Token ${auth_token}`,
-          },
-        }
-      );
-
-      const userData = userResponse.data;
-
-      const userPayload = {
-        id_user: userData.id_user,
-        username: userData.username,
-        email: userData.email,
-        role: userData.role,
-        is_superuser: userData.is_superuser || userData.role === "admin",
-      };
-
-      dispatch(loginSuccess({ token: auth_token, user: userPayload }));
-
-      if (userPayload.role === "admin" || userPayload.is_superuser) {
-        navigate("/admin");
-      } else {
-        navigate(`/storage/${userPayload.id_user}`);
+      } else if (login.rejected.match(result)) {
+        setLocalError(result.payload as string || "Ошибка при входе");
       }
-    } catch (err: any) {
-      dispatch(loginFailure());
-      console.error(err);
-
-      if (err.response && err.response.data && err.response.data.detail) {
-        setLocalError(err.response.data.detail);
-      } else if (err.message) {
+    } catch (err) {
+      // 👇 ПРАВИЛЬНАЯ ОБРАБОТКА ОШИБОК без 'any'
+      if (err instanceof AxiosError) {
+        // Ошибка axios (сетевая или от сервера)
+        const serverMessage = err.response?.data?.detail || err.response?.data?.message;
+        setLocalError(serverMessage || err.message || "Ошибка сети");
+      } else if (err instanceof Error) {
+        // Обычная ошибка JavaScript
         setLocalError(err.message);
       } else {
-        setLocalError("Произошла ошибка при входе");
+        // Неизвестная ошибка
+        setLocalError("Произошла неизвестная ошибка");
       }
     }
   };

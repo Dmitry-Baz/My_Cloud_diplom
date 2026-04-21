@@ -255,7 +255,7 @@
     ---
 
 46. Переходим в папку проекта `client`:\
-   `cd /home/<ИМЯ ПОЛЬЗОВАТЕЛЯ>/Diplom_MyCloud/frontend`
+   `cd /home/<ИМЯ ПОЛЬЗОВАТЕЛЯ>/My_Cloud_diplom/frontend`
 47. В папке `client/src` в файле `config.ts` редактируем базовый URL:\
    `nano config.ts`\
    `const API_BASE_URL = 'http://<IP АДРЕС СЕРВЕРА>:8000';`

@@ -21,6 +21,8 @@ client  уже собран, всё что Вам нужно, это:
 
    ```bash
    cd client
+   npm install @reduxjs/toolkit react-redux
+   npm install axios
    ```
 
 2. Запустить установку зависимостей:
