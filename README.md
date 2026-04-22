@@ -31,10 +31,7 @@ GET	/api/storage/
 
 © 2026
 
-# 📹 Демонстрация работы
+## 📹 Демонстрация работы
 
-![Демонстрация](client/assets/mycloud.gif)
+[![Демонстрация](assets/mycloud.gif)](assets/mycloud.gif)
 
-Build Command: pip install -r requirements.txt
-
-Start Command: cd server && gunicorn backend_project.wsgi:application
