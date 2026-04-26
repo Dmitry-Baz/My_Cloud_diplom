@@ -1,14 +1,14 @@
-// src/store/slices/authSlice.ts
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import axios, { AxiosError } from 'axios';
 
+// Правильное определение URL
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
-// Типы
 interface User {
   id: number;
   username: string;
-  full_name: string;  // ← теперь обязательное поле
+  full_name: string;
   email: string;
   is_admin: boolean;
 }
@@ -33,37 +33,37 @@ const getErrorMsg = (error: unknown, defaultMsg: string): string => {
   if (error instanceof AxiosError) {
     return error.response?.data?.detail || error.response?.data?.message || defaultMsg;
   }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return defaultMsg;
+  return error instanceof Error ? error.message : defaultMsg;
 };
 
 export const login = createAsyncThunk(
   'auth/login',
   async ({ username, password }: { username: string; password: string }, { rejectWithValue }) => {
     try {
+      // 1. Логин для получения токена
       const authResponse = await axios.post(`${API_BASE_URL}/auth/token/login/`, {
         username,
         password,
       });
       const auth_token = authResponse.data.auth_token;
       
+      // 2. Запрос данных пользователя по токену
       const userResponse = await axios.get(`${API_BASE_URL}/api/users/user_info/`, {
         headers: { Authorization: `Token ${auth_token}` },
       });
+      
       const userData = userResponse.data;
       
       return {
         token: auth_token,
         user: {
-          id: userData.id_user,
+          id: userData.id || userData.id_user, // Обработка разных имен полей
           username: userData.username,
-          full_name: userData.full_name || userData.username, // ← добавлено
+          full_name: userData.full_name || userData.username,
           email: userData.email,
-          is_admin: userData.is_superuser || userData.role === 'admin',
+          is_admin: !!(userData.is_superuser || userData.role === 'admin'),
         },
-        is_admin: userData.is_superuser || userData.role === 'admin',
+        is_admin: !!(userData.is_superuser || userData.role === 'admin'),
       };
     } catch (error) {
       return rejectWithValue(getErrorMsg(error, 'Ошибка входа'));
@@ -71,44 +71,33 @@ export const login = createAsyncThunk(
   }
 );
 
-export const register = createAsyncThunk(
-  'auth/register',
-  async (userData: { username: string; full_name: string; email: string; password: string }, { rejectWithValue }) => {
-    try {
-      const response = await axios.post(`${API_BASE_URL}/auth/register/`, userData);
-      return response.data;
-    } catch (error) {
-      return rejectWithValue(getErrorMsg(error, 'Ошибка регистрации'));
-    }
-  }
-);
-
 export const checkAuth = createAsyncThunk(
   'auth/checkAuth',
-  async (_, { getState, rejectWithValue }) => {
+  async (_, { rejectWithValue }) => {
+    const token = localStorage.getItem('token');
+    if (!token) return rejectWithValue('Нет токена');
+
     try {
-      const state = getState() as { auth: AuthState };
-      const token = state.auth.token;
-      
-      if (!token) throw new Error('Нет токена');
-      
       const response = await axios.get(`${API_BASE_URL}/api/users/user_info/`, {
         headers: { Authorization: `Token ${token}` },
       });
-      const userData = response.data;
       
+      const userData = response.data;
       return {
+        token: token,
         user: {
-          id: userData.id_user,
+          id: userData.id || userData.id_user,
           username: userData.username,
           full_name: userData.full_name || userData.username,
           email: userData.email,
-          is_admin: userData.is_superuser || userData.role === 'admin',
+          is_admin: !!(userData.is_superuser || userData.role === 'admin'),
         },
-        is_admin: userData.is_superuser || userData.role === 'admin',
+        is_admin: !!(userData.is_superuser || userData.role === 'admin'),
       };
     } catch (error) {
-      return rejectWithValue(getErrorMsg(error, 'Ошибка проверки'));
+      localStorage.removeItem('token');
+      localStorage.removeItem('isAdmin');
+      return rejectWithValue(getErrorMsg(error, 'Сессия истекла'));
     }
   }
 );
@@ -121,12 +110,8 @@ const authSlice = createSlice({
       state.user = null;
       state.token = null;
       state.isAdmin = false;
-      state.error = null;
       localStorage.removeItem('token');
       localStorage.removeItem('isAdmin');
-    },
-    clearAuthError: (state) => {
-      state.error = null;
     },
   },
   extraReducers: (builder) => {
@@ -135,11 +120,13 @@ const authSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(login.fulfilled, (state, action) => {
+      .addCase(login.fulfilled, (state, action: PayloadAction<any>) => {
         state.loading = false;
         state.token = action.payload.token;
-        state.user = action.payload.user;  // ← теперь типы совпадают
+        state.user = action.payload.user;
         state.isAdmin = action.payload.is_admin;
+        
+        // Сохраняем в localStorage для персистентности
         localStorage.setItem('token', action.payload.token);
         localStorage.setItem('isAdmin', String(action.payload.is_admin));
       })
@@ -147,37 +134,14 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      .addCase(register.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(register.fulfilled, (state) => {
-        state.loading = false;
-      })
-      .addCase(register.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      .addCase(checkAuth.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(checkAuth.fulfilled, (state, action) => {
-        state.loading = false;
+      .addCase(checkAuth.fulfilled, (state, action: PayloadAction<any>) => {
+        state.token = action.payload.token;
         state.user = action.payload.user;
         state.isAdmin = action.payload.is_admin;
-      })
-      .addCase(checkAuth.rejected, (state, action) => {
-        state.loading = false;
-        state.user = null;
-        state.token = null;
-        state.isAdmin = false;
-        state.error = action.payload as string;
-        localStorage.removeItem('token');
-        localStorage.removeItem('isAdmin');
       });
   },
 });
 
-export const { logout, clearAuthError } = authSlice.actions;
+export const { logout } = authSlice.actions;
 export default authSlice.reducer;
+

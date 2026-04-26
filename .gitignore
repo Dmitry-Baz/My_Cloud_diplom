@@ -13,6 +13,7 @@ dist-ssr
 *.local
 
 server/venv
+server/db.sqlite3
 
 # Editor directories and files
 .qoder/*

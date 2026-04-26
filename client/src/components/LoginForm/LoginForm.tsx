@@ -1,85 +1,60 @@
-// client/src/components/LoginForm/LoginForm.tsx
-import "./LoginForm.css";
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAppDispatch } from "../../hooks";
-import { login } from "../../store/slices/authSlice";
-import axios, { AxiosError } from "axios";  // ← добавляем импорт AxiosError
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+import React, { useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import { login } from '../../store/slices/authSlice';
+import type { AppDispatch, RootState } from '../../store';
 
 export const LoginForm: React.FC = () => {
-  const [username, setUsername] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
-  const [localError, setLocalError] = useState<string>("");
-
-  const dispatch = useAppDispatch();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const { loading, error } = useSelector((state: RootState) => state.auth);
+  const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLocalError("");
     
     try {
-      const result = await dispatch(login({ username, password }));
-      
-      if (login.fulfilled.match(result)) {
-        const user = result.payload.user;
-        if (user.is_admin || user.role === "admin") {
-          navigate("/admin");
-        } else {
-          navigate(`/storage/${user.id}`);
-        }
-      } else if (login.rejected.match(result)) {
-        setLocalError(result.payload as string || "Ошибка при входе");
+      const result = await dispatch(login({ username, password })).unwrap();
+      if (result.is_admin) {
+        navigate('/admin');
+      } else {
+        navigate(`/storage/${result.user.id}`);
       }
     } catch (err) {
-      // 👇 ПРАВИЛЬНАЯ ОБРАБОТКА ОШИБОК без 'any'
-      if (err instanceof AxiosError) {
-        // Ошибка axios (сетевая или от сервера)
-        const serverMessage = err.response?.data?.detail || err.response?.data?.message;
-        setLocalError(serverMessage || err.message || "Ошибка сети");
-      } else if (err instanceof Error) {
-        // Обычная ошибка JavaScript
-        setLocalError(err.message);
-      } else {
-        // Неизвестная ошибка
-        setLocalError("Произошла неизвестная ошибка");
-      }
+      // ошибка уже в state.auth.error
     }
   };
 
   return (
-    <div className="wrap">
-      <h2>Введите данные для входа</h2>
+    <div className="login-container">
+      <h2>Вход в систему</h2>
       <form onSubmit={handleSubmit}>
-        <div className="input-signin">
-          <label>
-            Логин:
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </label>
+        <div>
+          <label>Логин:</label>
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
         </div>
-        <div className="input-signin">
-          <label>
-            Пароль:
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </label>
+        <div>
+          <label>Пароль:</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
-        {localError && <div style={{ color: "red" }}>{localError}</div>}
-        <button className="button-signin" type="submit">
-          Войти
+        {error && <div className="error">{error}</div>}
+        <button type="submit" disabled={loading}>
+          {loading ? 'Загрузка...' : 'Войти'}
         </button>
       </form>
     </div>
   );
 };
+
+
