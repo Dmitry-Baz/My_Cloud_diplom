@@ -188,7 +188,11 @@ class StorageView(viewsets.ModelViewSet):
 
 class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action == 'create':
+            return []  # Регистрация без авторизации
+        return [IsAuthenticated()]
     
     def get_queryset(self):
         if self.request.user.role == 'admin':
