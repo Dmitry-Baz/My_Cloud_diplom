@@ -1,6 +1,6 @@
 // src/store/slices/usersSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import api from '../../services/api'; // ваш axios-инстанс
+import api from '../../services/api';
 
 // Типы данных
 export interface User {
@@ -35,7 +35,8 @@ export const fetchUsers = createAsyncThunk(
       const state = getState() as { auth: { token: string } };
       const token = state.auth.token;
       
-      const response = await api.get('/admin/users/', {
+      // Исправлено: /users/ вместо /admin/users/
+      const response = await api.get('/users/', {
         headers: { Authorization: `Bearer ${token}` }
       });
       return response.data;
@@ -52,8 +53,9 @@ export const toggleAdminStatus = createAsyncThunk(
       const state = getState() as { auth: { token: string } };
       const token = state.auth.token;
       
+      // Исправлено: /users/${userId}/ вместо /admin/users/${userId}/
       const response = await api.patch(
-        `/admin/users/${userId}/`,
+        `/users/${userId}/`,
         { is_admin: !isAdmin },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -71,7 +73,8 @@ export const deleteUser = createAsyncThunk(
       const state = getState() as { auth: { token: string } };
       const token = state.auth.token;
       
-      await api.delete(`/admin/users/${userId}/`, {
+      // Исправлено: /users/${userId}/ вместо /admin/users/${userId}/
+      await api.delete(`/users/${userId}/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       return userId;
@@ -97,7 +100,6 @@ const usersSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // fetchUsers
       .addCase(fetchUsers.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -110,7 +112,6 @@ const usersSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      // toggleAdminStatus
       .addCase(toggleAdminStatus.fulfilled, (state, action) => {
         const { userId, is_admin } = action.payload;
         const user = state.list.find(u => u.id === userId);
@@ -118,7 +119,6 @@ const usersSlice = createSlice({
           user.is_admin = is_admin;
         }
       })
-      // deleteUser
       .addCase(deleteUser.fulfilled, (state, action) => {
         state.list = state.list.filter(user => user.id !== action.payload);
       });

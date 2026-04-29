@@ -36,7 +36,8 @@ export const fetchFiles = createAsyncThunk(
       const state = getState() as { auth: { token: string } };
       const token = state.auth.token;
       
-      const url = userId ? `/files/user/${userId}/` : '/files/my/';
+      // Исправлено: /storage/ с query параметром id_user
+      const url = userId ? `/storage/?id_user=${userId}` : '/storage/';
       const response = await api.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -58,7 +59,8 @@ export const uploadFile = createAsyncThunk(
       formData.append('file', file);
       formData.append('comment', comment);
       
-      const response = await api.post('/files/upload/', formData, {
+      // Исправлено: /storage/ вместо /files/upload/
+      const response = await api.post('/storage/', formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
@@ -78,8 +80,9 @@ export const renameFile = createAsyncThunk(
       const state = getState() as { auth: { token: string } };
       const token = state.auth.token;
       
+      // Исправлено: /storage/${fileId}/
       const response = await api.patch(
-        `/files/${fileId}/`,
+        `/storage/${fileId}/`,
         { name: newName },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -97,7 +100,8 @@ export const deleteFile = createAsyncThunk(
       const state = getState() as { auth: { token: string } };
       const token = state.auth.token;
       
-      await api.delete(`/files/${fileId}/`, {
+      // Исправлено: /storage/${fileId}/
+      await api.delete(`/storage/${fileId}/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       return fileId;
@@ -114,8 +118,9 @@ export const generateShareLink = createAsyncThunk(
       const state = getState() as { auth: { token: string } };
       const token = state.auth.token;
       
+      // Исправлено: /storage/${fileId}/generate_share_link/
       const response = await api.post(
-        `/files/${fileId}/share/`,
+        `/storage/${fileId}/generate_share_link/`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -139,7 +144,6 @@ const filesSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // fetchFiles
       .addCase(fetchFiles.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -152,7 +156,6 @@ const filesSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      // uploadFile
       .addCase(uploadFile.pending, (state) => {
         state.uploading = true;
         state.error = null;
@@ -165,7 +168,6 @@ const filesSlice = createSlice({
         state.uploading = false;
         state.error = action.payload as string;
       })
-      // renameFile
       .addCase(renameFile.fulfilled, (state, action) => {
         const { fileId, newName } = action.payload;
         const file = state.list.find(f => f.id === fileId);
@@ -173,11 +175,9 @@ const filesSlice = createSlice({
           file.name = newName;
         }
       })
-      // deleteFile
       .addCase(deleteFile.fulfilled, (state, action) => {
         state.list = state.list.filter(f => f.id !== action.payload);
       })
-      // generateShareLink
       .addCase(generateShareLink.fulfilled, (state, action) => {
         const { fileId, shareLink } = action.payload;
         const file = state.list.find(f => f.id === fileId);
@@ -190,3 +190,4 @@ const filesSlice = createSlice({
 
 export const { clearFilesError, resetUploading } = filesSlice.actions;
 export default filesSlice.reducer;
+

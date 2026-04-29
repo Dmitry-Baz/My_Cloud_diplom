@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse
 from django.utils import timezone
@@ -56,7 +56,7 @@ class StorageView(viewsets.ModelViewSet):
                 return Storage.objects.filter(id_user_id=id_user_param)
             return Storage.objects.all()
         else:
-            if id_user_param and int(id_user_param) != user.id_user:
+            if id_user_param and int(id_user_param) != user.id:
                 return Storage.objects.none()
             return Storage.objects.filter(id_user=user)
 
@@ -66,7 +66,7 @@ class StorageView(viewsets.ModelViewSet):
         
         if target_user_id:
             target_user_id = int(target_user_id)
-            if user.role != 'admin' and user.id_user != target_user_id:
+            if user.role != 'admin' and user.id != target_user_id:
                 return False
         return True
 
@@ -84,7 +84,7 @@ class StorageView(viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         
-        if request.user.role != 'admin' and instance.id_user.id_user != request.user.id_user:
+        if request.user.role != 'admin' and instance.id_user.id != request.user.id:
             return Response(
                 {"detail": "Нет прав доступа к этому файлу."},
                 status=status.HTTP_403_FORBIDDEN
@@ -106,7 +106,7 @@ class StorageView(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         
-        if request.user.role != 'admin' and instance.id_user.id_user != request.user.id_user:
+        if request.user.role != 'admin' and instance.id_user.id != request.user.id:
             return Response(
                 {"detail": "Нет прав на изменение этого файла."},
                 status=status.HTTP_403_FORBIDDEN
@@ -117,7 +117,7 @@ class StorageView(viewsets.ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
         
-        if request.user.role != 'admin' and instance.id_user.id_user != request.user.id_user:
+        if request.user.role != 'admin' and instance.id_user.id != request.user.id:
             return Response(
                 {"detail": "Нет прав на изменение этого файла."},
                 status=status.HTTP_403_FORBIDDEN
@@ -128,7 +128,7 @@ class StorageView(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         
-        if request.user.role != 'admin' and instance.id_user.id_user != request.user.id_user:
+        if request.user.role != 'admin' and instance.id_user.id != request.user.id:
             return Response(
                 {"detail": "Нет прав на удаление этого файла."},
                 status=status.HTTP_403_FORBIDDEN
@@ -142,7 +142,7 @@ class StorageView(viewsets.ModelViewSet):
     def download(self, request, pk=None):
         instance = self.get_object()
         
-        if request.user.role != 'admin' and instance.id_user.id_user != request.user.id_user:
+        if request.user.role != 'admin' and instance.id_user.id != request.user.id:
             return Response(
                 {"detail": "Нет прав на скачивание этого файла."},
                 status=status.HTTP_403_FORBIDDEN
@@ -168,7 +168,7 @@ class StorageView(viewsets.ModelViewSet):
     def generate_share_link(self, request, pk=None):
         instance = self.get_object()
         
-        if request.user.role != 'admin' and instance.id_user.id_user != request.user.id_user:
+        if request.user.role != 'admin' and instance.id_user.id != request.user.id:
             return Response(
                 {"detail": "Нет прав на создание ссылки для этого файла."},
                 status=status.HTTP_403_FORBIDDEN
@@ -193,7 +193,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if self.request.user.role == 'admin':
             return User.objects.all()
-        return User.objects.filter(id_user=self.request.user.id_user)
+        return User.objects.filter(id=self.request.user.id)
     
     def list(self, request, *args, **kwargs):
         if request.user.role != 'admin':
@@ -212,7 +212,7 @@ class UserViewSet(viewsets.ModelViewSet):
         
         user = self.get_object()
         
-        if user.id_user == request.user.id_user:
+        if user.id == request.user.id:
             return Response(
                 {"detail": "Нельзя удалить самого себя."},
                 status=status.HTTP_403_FORBIDDEN
@@ -221,4 +221,14 @@ class UserViewSet(viewsets.ModelViewSet):
         user.delete()
         
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# Дополнительный эндпоинт для получения информации о текущем пользователе
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_info(request):
+    """Получение информации о текущем авторизованном пользователе"""
+    serializer = UserSerializer(request.user)
+    return Response(serializer.data)
+
 
